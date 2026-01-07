@@ -1,5 +1,6 @@
 import numpy as np
 from enum import IntEnum
+from .internalforcecomputer import InternalForceComputer
 
 
 class DofID(IntEnum):
@@ -111,6 +112,7 @@ class Beam2D(Element):
     def __init__(self, label, domain, nodes, mat, cs, hinges=(False, False)):
         super().__init__(label, domain, nodes, mat, cs)
         self.hinges = hinges
+        self.ifc = InternalForceComputer(self)
 
     def get_node_dofs(self, node):
         return [DofID.Dx, DofID.Dz, DofID.Ry]
@@ -285,54 +287,39 @@ class Beam2D(Element):
         u_global = u_local * c - w_local * s
         w_global = w_local * c + u_local * s
         return {"u": u_global, "w": w_global}
+    
+    def get_element_internal_force_polynomials(self):
+        """
+            Returns the element's own internal force polynomials
+            from FE nodal displacements.
+        """
 
-    def compute_normal_force(self, nseg):
         F = self._end_forces_local()
-        geo = self.compute_geo()
-        L = geo["l"]
-        x_vals = []
-        N_vals = []
-        eloads = self.domain.get_element_loads(self.label)
-        for iseg in range(nseg + 1):
-            x = L * iseg / nseg
-            Ni = -F[0]
-            for load in eloads:
-                Ni += load.compute_beam_N_contrib(self, x)
-            x_vals.append(x)
-            N_vals.append(Ni)
-        return {"x": np.array(x_vals), "N": np.array(N_vals)}
+    
+        # Axial: N(x) = EA * u'(x)
+        # u(x) = N1 u1 + N2 u2
+        # u'(x) = (u2 - u1)/L
+        A2 = 0.0
+        A1 = 0.0
+        A0 = -F[0]
 
-    def compute_shear_force(self, nseg):
-        F = self._end_forces_local()
-        geo = self.compute_geo()
-        L = geo["l"]
-        x_vals = []
-        V_vals = []
-        eloads = self.domain.get_element_loads(self.label)
-        for iseg in range(nseg + 1):
-            x = L * iseg / nseg
-            Vi = -F[1]
-            for load in eloads:
-                Vi += load.compute_beam_V_contrib(self, x)
-            x_vals.append(x)
-            V_vals.append(Vi)
-        return {"x": np.array(x_vals), "V": np.array(V_vals)}
+        # Shear: V(x) = -EI w'''(x)
+        # For Hermite cubic shape functions, w'''(x) is constant
+        B2 = 0.0
+        B1 = 0.0
+        B0 = -F[1]
 
-    def compute_bending_moment(self, nseg):
-        F = self._end_forces_local()
-        geo = self.compute_geo()
-        L = geo["l"]
-        x_vals = []
-        M_vals = []
-        eloads = self.domain.get_element_loads(self.label)
-        for iseg in range(nseg + 1):
-            x = L * iseg / nseg
-            Mi = -F[2] - F[1] * x
-            for load in eloads:
-                Mi += load.compute_beam_M_contrib(self, x)
-            x_vals.append(x)
-            M_vals.append(Mi)
-        return {"x": np.array(x_vals), "M": np.array(M_vals)}
+        # Moment: M(x) = EI w''(x)
+        # w''(x) = linear function
+        C2 = 0.0
+        C1 = -F[1]
+        C0 = -F[2]
+
+        D3 = 0.0  # element itself never produces cubic M
+
+        return (A2, A1, A0), (B2, B1, B0), (D3, C2, C1, C0)
+
+
 
     # convenience
     def apply_udl(self, w):

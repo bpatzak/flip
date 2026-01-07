@@ -10,11 +10,12 @@ from .loads import (
     NodalForce,
     UniformDistributedLoad,
     PointLoadOnElement,
-    LinearDistributedLoad,
     PrestressLoad,
     SelfWeightLoad,
 )
+from .internalforcecomputer import InternalForceComputer
+
 from .svgplot import (
     plot_model_drawsvg,
-    plot_model_diagram,
+    plot_internal_forces_on_structure,
 )
