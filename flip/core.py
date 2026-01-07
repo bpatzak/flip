@@ -35,19 +35,19 @@ class CrossSection:
 
 
 class Node:
-    def __init__(self, label, domain, coords=None, bcs=None):
+    def __init__(self, label, domain, coords=None, bcs=None, lcs=None):
         self.label = label
         self.domain = domain
         self.coords = np.array(coords if coords is not None else [0.0, 0.0, 0.0], dtype=float)
         self.bcs = set(bcs if bcs is not None else [])
-        self.lcs = None
+        self.update_lcs(lcs)
 
     def update_lcs(self, lcs):
         if lcs is None:
             self.lcs = None
             return
-        locx = np.array(lcs["locx"], dtype=float)
-        locy = np.array(lcs["locy"], dtype=float)
+        locx = np.array(lcs["lx"], dtype=float)
+        locy = np.array(lcs["ly"], dtype=float)
         e1 = locx / np.linalg.norm(locx)
         e2 = locy / np.linalg.norm(locy)
         e3 = np.cross(e1, e2)

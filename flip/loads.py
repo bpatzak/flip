@@ -9,17 +9,19 @@ class NodalForce:
 
 
 class UniformDistributedLoad:
-    def __init__(self, w):
-        self.w = w
+    def __init__(self, fx=0.0, fz=0.0):
+        self.fz = fz
+        self.fx = fx
 
     def get_load_vector_for_clamped_beam(self, elem):
         L = elem.compute_geo()["l"]
-        w = self.w
+        u = self.fx
+        w = self.fz
         return np.array([
-            0.0,
+            u * L / 2.0,
             w * L / 2.0,
             -w * L**2 / 12.0,
-            0.0,
+            u * L / 2.0,
             w * L / 2.0,
             w * L**2 / 12.0
         ])
@@ -43,21 +45,20 @@ class UniformDistributedLoad:
             f_condensed[np.ix_(a)] = fa
             f_global = T.T @ f_condensed
             return f_global
-        return self.get_load_vector_for_clamped_beam(elem)
+        return T.T @ f
     
     def compute_beam_deflection_contrib(self, elem, xl):
         # simple zero contribution placeholder
         return {"u": 0.0, "w": 0.0}
 
     def compute_beam_N_contrib(self, elem, x):
-        return 0.0
+        return -self.fx * x
 
     def compute_beam_V_contrib(self, elem, x):
-        return -self.w * x
+        return -self.fz * x
 
     def compute_beam_M_contrib(self, elem, x):
-        return -self.w * x**2 / 2.0
-
+        return -self.fz * x**2 / 2.0
 
 class PointLoadOnElement:
     def __init__(self, P, a):

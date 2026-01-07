@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import drawsvg as draw
 from .core import DofID
@@ -13,8 +14,10 @@ def _sx_sy_builder(xs, zs, width_px, height_px, margin):
     zmin, zmax = zs.min(), zs.max()
     if xmax == xmin:
         xmax += 1.0
+        xmin -= 1.0
     if zmax == zmin:
         zmax += 1.0
+        zmin -= 1.0
 
     def sx(x):
         return margin + (x - xmin) / (xmax - xmin) * (width_px - 2*margin)
@@ -44,21 +47,84 @@ def draw_pinned_support(d, x, z, size=20):
     p.Z()
     d.append(p)
 
+def draw_roller_support(d, x, z, size=20, lcs=None):
+    """
+    Roller support aligned with node LCS.
+    Base line is offset outward from the node.
+    Polygon-free version (Path, Line, Circle only).
+    """
 
-def draw_roller_support(d, x, z, size=20):
-    base = z + size
+    # ------------------------------------------------------------
+    # Determine roller free direction from node LCS
+    # ------------------------------------------------------------
+    if lcs is not None:
+        # local z-axis projected to XZ plane
+        nx = -lcs[2][0]
+        nz = -lcs[2][2]
+    else:
+        nx, nz = 0.0, -1.0  # default: roller free in +X
 
-    # Triangle
+    # Normalize
+    L = (nx*nx + nz*nz)**0.5
+    if L == 0:
+        nx, nz = 1.0, 0.0
+    else:
+        nx /= L
+        nz /= L
+
+    # ------------------------------------------------------------
+    # Support direction = opposite of roller free direction
+    # ------------------------------------------------------------
+    sx_dir = -nx
+    sz_dir = -nz
+
+    # Perpendicular direction (base line direction)
+    tx, tz = -sz_dir, sx_dir
+
+    # ------------------------------------------------------------
+    # Offset the base line outward from the node
+    # ------------------------------------------------------------
+    offset = size * 0.6
+    bx = x + sx_dir * offset
+    bz = z + sz_dir * offset
+
+    # Base endpoints
+    bx1 = bx - tx * size
+    bz1 = bz - tz * size
+    bx2 = bx + tx * size
+    bz2 = bz + tz * size
+
+    d.append(draw.Line(bx1, bz1, bx2, bz2, stroke='black'))
+
+    # ------------------------------------------------------------
+    # Triangle (support body)
+    # ------------------------------------------------------------
     p = draw.Path(stroke='black', fill='white')
-    p.M(x - size, base)
-    p.L(x + size, base)
+    p.M(bx1, bz1)
+    p.L(bx2, bz2)
     p.L(x, z)
     p.Z()
     d.append(p)
 
-    # Rollers
-    d.append(draw.Circle(x - size/2, base + size/3, size/4, fill='white', stroke='black'))
-    d.append(draw.Circle(x + size/2, base + size/3, size/4, fill='white', stroke='black'))
+    # ------------------------------------------------------------
+    # Rollers (two circles)
+    # ------------------------------------------------------------
+    r = size * 0.25
+    roll_offset = size * 0.6
+    bx = x + sx_dir * size * 0.85
+    bz = z + sz_dir * size * 0.85
+
+    # Roller 1
+    rx1 = bx - tx * roll_offset
+    rz1 = bz - tz * roll_offset
+    d.append(draw.Circle(rx1, rz1, r, fill='white', stroke='black'))
+
+    # Roller 2
+    rx2 = bx + tx * roll_offset
+    rz2 = bz + tz * roll_offset
+    d.append(draw.Circle(rx2, rz2, r, fill='white', stroke='black'))
+
+
 
 
 def draw_fixed_support(d, x, z, size=20):
@@ -136,8 +202,19 @@ def draw_distributed_load(d, x1, z1, x2, z2, w, n_arrows=8, scale=0.002):
 # ------------------------------------------------------------
 def plot_model_drawsvg(domain, filename="model.svg",
                        width_px=800, height_px=600, margin=40,
-                       show_node_labels=True, show_element_labels=True):
+                       show_node_labels=True,
+                       show_element_labels=True,
+                       show_deformed=False,
+                       deform_scale=1.0,
+                       nseg=40):
+    """
+    Draws the undeformed model and optionally the deformed shape.
+    Deformed shape is drawn in real geometry using only Path/Line/Circle/Text.
+    """
 
+    # ------------------------------------------------------------
+    # Collect coordinates for global scaling
+    # ------------------------------------------------------------
     xs, zs = [], []
     for node in domain.nodes.values():
         xs.append(node.coords[0])
@@ -146,17 +223,20 @@ def plot_model_drawsvg(domain, filename="model.svg",
     sx, sy = _sx_sy_builder(xs, zs, width_px, height_px, margin)
     d = draw.Drawing(width_px, height_px, origin=(0, 0))
 
-    # Elements
+    # ------------------------------------------------------------
+    # Draw elements (undeformed)
+    # ------------------------------------------------------------
     for elem in domain.elements.values():
         n1 = domain.get_node(elem.nodes[0])
         n2 = domain.get_node(elem.nodes[1])
+
         x1, z1 = sx(n1.coords[0]), sy(n1.coords[2])
         x2, z2 = sx(n2.coords[0]), sy(n2.coords[2])
 
         d.append(draw.Line(x1, z1, x2, z2, stroke='black', stroke_width=2))
 
         if show_element_labels:
-            xm, zm = (x1 + x2)/2, (z1 + z2)/2
+            xm, zm = (x1 + x2) / 2, (z1 + z2) / 2
             d.append(draw.Text(f"E{elem.label}", 14, xm, zm - 5,
                                center=True, fill='blue'))
 
@@ -165,7 +245,9 @@ def plot_model_drawsvg(domain, filename="model.svg",
             if hasattr(load, "w"):
                 draw_distributed_load(d, x1, z1, x2, z2, load.w)
 
-    # Nodes, supports, nodal loads
+    # ------------------------------------------------------------
+    # Draw nodes, supports, nodal loads
+    # ------------------------------------------------------------
     for node in domain.nodes.values():
         x, z = sx(node.coords[0]), sy(node.coords[2])
         d.append(draw.Circle(x, z, 4, fill='red'))
@@ -180,7 +262,7 @@ def plot_model_drawsvg(domain, filename="model.svg",
         elif DofID.Dx in bcs and DofID.Dz in bcs:
             draw_pinned_support(d, x, z)
         elif DofID.Dz in bcs:
-            draw_roller_support(d, x, z)
+            draw_roller_support(d, x, z, lcs=node.lcs)
 
         # Nodal loads
         if node.label in domain.nodal_loads:
@@ -190,9 +272,112 @@ def plot_model_drawsvg(domain, filename="model.svg",
             if My != 0:
                 draw_moment(d, x, z, My)
 
-    #d.save_svg(filename)
-    #d.set_pixel_scale(2) # Set number of pixels per geometry unit
+    # ------------------------------------------------------------
+    # Draw deformed shape (optional)
+    # ------------------------------------------------------------
+    if show_deformed:
+        if domain.solver is None or domain.solver.r is None:
+            raise RuntimeError("Solver must be run before drawing deformed shape.")
+
+        # automatic scaling based on model size
+        model_span = max(xs) - min(xs)
+        auto_scale = deform_scale * 0.05 * model_span
+
+        # collect all deformed coordinates for max/min detection
+        all_dx = []
+        all_dz = []
+        all_u = []
+        all_w = []
+
+        # First pass: compute all deformed points
+        elem_shapes = {}  # elem.label → list of (x_def, z_def)
+        for elem in domain.elements.values():
+            dsh = elem.compute_global_deflection(nseg)
+            geo = elem.compute_geo()
+
+            n1 = domain.get_node(elem.nodes[0])
+            n2 = domain.get_node(elem.nodes[1])
+
+            x1, z1 = n1.coords[0], n1.coords[2]
+            dx = n2.coords[0] - x1
+            dz = n2.coords[2] - z1
+            L = geo["l"]
+
+            pts = []
+            for i in range(nseg + 1):
+                s = i / nseg
+                px = x1 + s * dx
+                pz = z1 + s * dz
+
+                # add deformation
+                px_def = px + dsh["u"][i] * auto_scale
+                pz_def = pz + dsh["w"][i] * auto_scale
+
+                pts.append((px_def, pz_def))
+                all_dx.append(px_def)
+                all_dz.append(pz_def)
+                all_u.append(dsh["u"][i])
+                all_w.append(dsh["w"][i])
+
+            elem_shapes[elem.label] = pts
+
+        # --------------------------------------------------------
+        # Draw deformed shape (semi-transparent)
+        # --------------------------------------------------------
+        for elem in domain.elements.values():
+            pts = elem_shapes[elem.label]
+
+            p = draw.Path(
+                stroke='purple',
+                fill='none',
+                stroke_width=2,
+                stroke_opacity=0.6   # transparency
+            )
+
+            for i, (px_def, pz_def) in enumerate(pts):
+                if i == 0:
+                    p.M(sx(px_def), sy(pz_def))
+                else:
+                    p.L(sx(px_def), sy(pz_def))
+
+            d.append(p)
+
+        # --------------------------------------------------------
+        # Mark max/min displacement with numeric values
+        # --------------------------------------------------------
+        all_u = np.array(all_u)
+        all_w = np.array(all_w)
+        disp_mag = np.sqrt(all_u**2 + all_w**2)
+
+        imax = np.argmax(disp_mag)
+        imin = np.argmin(disp_mag)
+
+        xmax = all_dx[imax]
+        zmax = all_dz[imax]
+        xmin = all_dx[imin]
+        zmin = all_dz[imin]
+
+        vmax_val = disp_mag[imax]
+        vmin_val = disp_mag[imin]
+
+        # Max marker
+        d.append(draw.Circle(sx(xmax), sy(zmax), 5, fill='red'))
+        d.append(draw.Text(f"{vmax_val:.4g}", 12,
+                           sx(xmax), sy(zmax) - 12,
+                           center=True, fill='red'))
+
+        # Min marker
+        d.append(draw.Circle(sx(xmin), sy(zmin), 5, fill='blue'))
+        d.append(draw.Text(f"{vmin_val:.4g}", 12,
+                           sx(xmin), sy(zmin) + 14,
+                           center=True, fill='blue'))
+
+    # ------------------------------------------------------------
+    # Save SVG
+    # ------------------------------------------------------------
+    # d.save_svg(filename)
     return d
+
 
 
 # ------------------------------------------------------------
