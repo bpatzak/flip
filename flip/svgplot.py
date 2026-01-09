@@ -37,6 +37,13 @@ def _build_scalers(xs, ys, width_px, height_px, margin):
     xmin, xmax = min(xs), max(xs)
     ymin, ymax = min(ys), max(ys)
 
+    if xmax == xmin:
+        xmax += 1.0
+        xmin -= 1.0
+    if ymax == ymin:
+        ymax += 1.0
+        ymin -= 1.0
+
     dx = xmax - xmin if xmax > xmin else 1.0
     dy = ymax - ymin if ymax > ymin else 1.0
 
@@ -213,6 +220,29 @@ def draw_distributed_load(d, x1, z1, x2, z2, w, n_arrows=8, scale=0.002):
 
         d.append(draw.Line(px, pz, ax, az, stroke='blue'))
 
+def _draw_legend(d, SX, SY, diagrams, colors, width_px, height_px, margin=20):
+    """
+    Draws a simple legend box in the top-right corner.
+    """
+    # Legend position
+    x0 = width_px - 60
+    y0 = margin + 20
+
+    # Background box
+    d.append(draw.Rectangle(x0, y0 - 20, 60, 20 + 15*len(diagrams),
+                            fill='white', stroke='black', stroke_width=1, rx=6, ry=6))
+
+    # Items
+    for i, label in enumerate(diagrams):
+        color = colors[label]
+        y = y0 + i*15
+
+        # Color marker
+        d.append(draw.Line(x0 + 10, y, x0 + 30, y,
+                           stroke=color, stroke_width=4))
+
+        # Text
+        d.append(draw.Text(label, 10, x0 + 40, y + 5, fill='black'))
 
 # ------------------------------------------------------------
 # Model plot
@@ -470,14 +500,15 @@ def _draw_filled_diagram(d, xs, vals, sf, n1, c, s, SX, SY, color, alpha=0.25):
 # ------------------------------------------------------------
 def plot_internal_forces_on_structure(domain,
                                       filename="structure_diagrams.svg",
-                                      width_px=1200,
-                                      height_px=900,
+                                      width_px=400,
+                                      height_px=400,
                                       margin=40,
                                       diagrams=("N", "V", "M"),
                                       scale=0.15,
                                       show_extrema=True,
                                       n_per_segment=40,
-                                      flip={"N": -1, "V": -1, "M": 1}):
+                                      flip={"N": -1, "V": -1, "M": 1},
+                                      show_legend=True):
     """
     Draws internal force diagrams directly on the structure.
 
@@ -632,6 +663,9 @@ def plot_internal_forces_on_structure(domain,
         d.append(draw.Line(Sx(n1.coords[0]), Sy(n1.coords[2]),
                            Sx(n2.coords[0]), Sy(n2.coords[2]),
                            stroke='black', stroke_width=2))
+    
+    if show_legend:
+        _draw_legend(d, Sx, Sy, diagrams, colors, width_px, height_px)
 
     # Save
     # d.save_svg(filename)
