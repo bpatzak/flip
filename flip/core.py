@@ -23,7 +23,7 @@ class Material:
 
 class CrossSection:
     def __init__(self, label, a=None, iy=None, iz=None, dyz=None,
-                 h=None, k=1.0, j=None, rho=None):
+                 h=None, k=1.e30, j=None, rho=None):
         self.label = label
         self.a = a
         self.iy = iy
