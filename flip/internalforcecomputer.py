@@ -25,7 +25,7 @@ class InternalForceComputer:
         L = self.elem.compute_geo()["l"]
         pts = [0.0, L]
 
-        for load in getattr(self.elem, "loads", []):
+        for load in self.elem.domain.get_element_loads(self.elem.label):
             if hasattr(load, "get_break_points"):
                 pts.extend(load.get_break_points(self.elem))
 
@@ -151,6 +151,9 @@ class InternalForceComputer:
             "V_min": min(V_candidates, key=lambda t: t[1]),
             "M_max": max(M_candidates, key=lambda t: t[1]),
             "M_min": min(M_candidates, key=lambda t: t[1]),
+            "N_candidates": N_candidates,
+            "V_candidates": V_candidates,
+            "M_candidates": M_candidates
         }
 
     # ------------------------------------------------------------

@@ -197,10 +197,10 @@ class PointLoadOnElement:
         return np.array([
             u * b / L,                         # Fx1
             w * b**2 * (3*a + b) / L**3,       # Fz1
-            w * a * b**2 / L**2,               # M1
+            -w * a * b**2 / L**2,               # M1
             u * a / L,                         # Fx2
             w * a**2 * (a + 3*b) / L**3,       # Fz2
-            -w * a**2 * b / L**2               # M2
+            w * a**2 * b / L**2               # M2
         ])
 
     # ------------------------------------------------------------
