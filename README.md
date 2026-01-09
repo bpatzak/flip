@@ -1,7 +1,7 @@
 # FLIP
 Parametric Structural Beam & Frame Analysis in Python
 A lightweight, transparent, script‑driven environment for structural analysis.
-Built for engineers who want full control, reproducibility, and the freedom to automate everything — without the constraints of GUI‑based FEM tools.
+Built for students & engineers who want full control, reproducibility, and the freedom to automate everything — without the constraints of GUI‑based FEM tools.
 
 🚀 Why This Instead of a GUI?
 Traditional FEM software is powerful, but it locks you into fixed workflows, hidden assumptions, and manual clicking.
