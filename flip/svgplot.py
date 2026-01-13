@@ -230,7 +230,7 @@ def _draw_legend(d, SX, SY, diagrams, colors, width_px, height_px, margin=20):
 
     # Background box
     d.append(draw.Rectangle(x0, y0 - 20, 60, 20 + 15*len(diagrams),
-                            fill='white', stroke='black', stroke_width=1, rx=6, ry=6))
+                            fill='white', stroke='black', stroke_width=1, rx=6, ry=6, fill_opacity=0.8))
 
     # Items
     for i, label in enumerate(diagrams):
@@ -543,6 +543,20 @@ def plot_internal_forces_on_structure(domain,
     # --------------------------------------------------------
     colors = {"N": "red", "V": "green", "M": "blue"}
 
+    # determine scale factor per structure
+    max_val_structure = 1e-12
+    for elem in domain.elements.values():
+        xs, Ns, Vs, Ms = elem.ifc.get_diagram_points(n_per_segment)
+        if "N" in diagrams: max_val_structure = max(max_val_structure, max(abs(Ns)))
+        if "V" in diagrams: max_val_structure = max(max_val_structure, max(abs(Vs)))
+        if "M" in diagrams: max_val_structure = max(max_val_structure, max(abs(Ms)))
+
+    if max_val_structure < 1e-12:
+        max_val_structure = 1.0
+
+    sf = scale / max_val_structure
+
+
     for elem in domain.elements.values():
         n1 = domain.get_node(elem.nodes[0])
         n2 = domain.get_node(elem.nodes[1])
@@ -565,19 +579,6 @@ def plot_internal_forces_on_structure(domain,
 
         # Get polynomial diagram points
         xs, Ns, Vs, Ms = elem.ifc.get_diagram_points(n_per_segment)
-
-        # Normalize diagrams for visual scaling
-        # (use element length as reference)
-        max_val = 1e-12
-        if "N" in diagrams: max_val = max(max_val, max(abs(Ns)))
-        if "V" in diagrams: max_val = max(max_val, max(abs(Vs)))
-        if "M" in diagrams: max_val = max(max_val, max(abs(Ms)))
-
-        if max_val < 1e-12:
-            max_val = 1.0
-
-        # scaling factor
-        sf = scale * L / max_val
 
         # Filled diagrams 
         if "N" in diagrams: _draw_filled_diagram(d, xs, Ns, sf*flip["N"], n1, c, s, Sx, Sy, colors["N"])
@@ -622,36 +623,44 @@ def plot_internal_forces_on_structure(domain,
         if show_extrema:
             ext = elem.ifc.get_extrema()
 
-            def draw_ext_point(x, val, color, label):
+            def draw_ext_point(x, val, L, color, label):
                 Xg, Yg = _rot_trans(x, val * sf * flip[label], x1, z1, c, s)
                 # Marker
                 d.append(draw.Circle(Sx(Xg), Sy(Yg), 4, fill=color))
                 # Value
-                offset = 6 if val* flip[label] >= 0 else -6
-                anchor = 'start' if val* flip[label] >= 0 else 'end'
-                baseline = 'hanging' if val* flip[label] >= 0 else 'auto'
+                offset = 6 if x < L/2 else -6
+                yoffset = 8 if val*flip[label] >=0 else -4
+                anchor = 'start' if x < L/2  else 'end'
+                baseline = 'auto'
                 if math.fabs(val) > 1000:
                     val_str = f"{val:.2e}"
                     offset *= 1.5
                 else:
                     val_str = f"{val:.2f}"
                 d.append(draw.Text(val_str, 12,
-                                   Sx(Xg)+offset, Sy(Yg) + offset,
+                                   Sx(Xg)+offset, Sy(Yg)+yoffset,
                                    text_anchor=anchor,
                                     dominant_baseline=baseline,
                                    fill=color))
-
+                
+            L= elem.compute_geo()["l"]
             if "N" in diagrams:
-                draw_ext_point(*ext["N_max"], colors["N"], "N")
-                draw_ext_point(*ext["N_min"], colors["N"], "N")
+                #draw_ext_point(*ext["N_max"], colors["N"], "N")
+                #draw_ext_point(*ext["N_min"], colors["N"], "N")
+                for i in range(len(ext["N_candidates"])):
+                    x, val = ext["N_candidates"][i]
+                    draw_ext_point(x, val, L, colors["N"], "N")
 
             if "V" in diagrams:
-                draw_ext_point(*ext["V_max"], colors["V"], "V")
-                draw_ext_point(*ext["V_min"], colors["V"], "V")
+                #draw_ext_point(*ext["V_max"], colors["V"], "V")
+                #draw_ext_point(*ext["V_min"], colors["V"], "V")
+                for i in range(len(ext["V_candidates"])):
+                    x, val = ext["V_candidates"][i]
+                    draw_ext_point(x, val, L, colors["V"], "V")
 
             if "M" in diagrams:
-                draw_ext_point(*ext["M_max"], colors["M"], "M")
-                draw_ext_point(*ext["M_min"], colors["M"], "M")
+                draw_ext_point(*ext["M_max"], L, colors["M"], "M")
+                draw_ext_point(*ext["M_min"], L, colors["M"], "M")
                 
     # --------------------------------------------------------
     # Draw structure (elements)
