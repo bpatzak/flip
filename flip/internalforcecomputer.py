@@ -54,7 +54,11 @@ class InternalForceComputer:
 
                 # Each load returns:
                 # (A2,A1,A0), (B2,B1,B0), (D3,C2,C1,C0)
-                (a2, a1, a0), (b2, b1, b0), (d3, c2, c1, c0) = load.get_polynomial_contrib(self.elem)
+                #(a2, a1, a0), (b2, b1, b0), (d3, c2, c1, c0) = load.get_polynomial_contrib(self.elem)
+                contribs = load.get_polynomial_contrib(self.elem)
+                a2, a1, a0 = contribs['N']
+                b2, b1, b0 = contribs['V']
+                d3, c2, c1, c0 = contribs['M']
 
                 # Point loads only apply for x >= a
                 if hasattr(load, "a"):

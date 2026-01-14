@@ -121,7 +121,8 @@ class UniformDistributedLoad:
 
     def get_polynomial_contrib(self, elem):
         """
-        Returns polynomial coefficients for N, V, M:
+        Returns dict of polynomial coefficients for f, N, V, M:
+        f(x): {'x': (f0+f1*x), {'z': (f0+f1*x), 'my': (f0+f1*x}}
         N(x) = A1*x + A0
         V(x) = B1*x + B0
         M(x) = C2*x^2 + C1*x + C0
@@ -145,7 +146,7 @@ class UniformDistributedLoad:
         C1 = 0.0
         C0 = 0.0
 
-        return (0, A1, A0), (0, B1, B0), (0, C2, C1, C0)
+        return {'N':(0, A1, A0), 'V':(0, B1, B0), 'M':(0, C2, C1, C0), 'f':{'x':(0, self.fx), 'z':(0, self.fz), 'my':(0, 0)}}
 
 
 class PointLoadOnElement:
@@ -263,7 +264,7 @@ class PointLoadOnElement:
         C1 = -w
         C0 = w * self.a
 
-        return (0, A1, A0), (0, B1, B0), (0, C2, C1, C0)
+        return {'N': (0, A1, A0), 'V': (0, B1, B0), 'M': (0, C2, C1, C0), 'f': {'x': (0, self.fx), 'z': (0, self.fz), 'my': (0, 0)}}
 
 
 class SelfWeightLoad:
@@ -385,7 +386,7 @@ class SelfWeightLoad:
         C1 = -w
         C0 = w * self.a
 
-        return (0, A1, A0), (0, B1, B0), (0, C2, C1, C0)
+        return {'N': (0, A1, A0), 'V': (0, B1, B0), 'M': (0, C2, C1, C0), 'f': {'x': (0, self.fx), 'z': (0, self.fz), 'my': (0, 0)}}
 
 
 class TemperatureLoad:
@@ -517,7 +518,7 @@ class TemperatureLoad:
         C1 = 0.0
         C0 = M_T
 
-        return (0, A1, A0), (0, B1, B0), (0, C2, C1, C0)
+        return {'N': (0, A1, A0), 'V': (0, B1, B0), 'M': (0, C2, C1, C0), 'f': {'x': (0, self.dT), 'z': (0, 0), 'my': (0, (self.dT_top - self.dT_bottom) / cs.h)}}
 
 
 class PrestressLoad:
@@ -624,5 +625,5 @@ class PrestressLoad:
         C1 = 0.0
         C0 = 0.0
 
-        return (0, A1, A0), (0, B1, B0), (0, C2, C1, C0)
+        return {'N': (0, A1, A0), 'V': (0, B1, B0), 'M': (0, C2, C1, C0), 'f': {'x': (0, self.N0), 'z': (0, 0), 'my': (0, 0)}}
 

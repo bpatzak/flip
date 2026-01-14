@@ -2,7 +2,7 @@ import math
 import numpy as np
 import drawsvg as draw
 
-from flip import domain
+from flip import domain, PointLoadOnElement
 from .core import DofID
 
 
@@ -200,25 +200,87 @@ def draw_moment(d, x, z, My, radius=20):
     d.append(p)
 
 
-def draw_distributed_load(d, x1, z1, x2, z2, w, n_arrows=8, scale=0.002):
+def draw_element_point_load(d, domain, elem, load, sx, sy, size=20):
+    n1 = domain.get_node(elem.nodes[0])
+    n2 = domain.get_node(elem.nodes[1])
+    l=np.sqrt((n2.coords[0] - n1.coords[0])**2 + (n2.coords[2] - n1.coords[2])**2) # real length
+
+
+    x1, z1 = sx(n1.coords[0]), sy(n1.coords[2])
+    x2, z2 = sx(n2.coords[0]), sy(n2.coords[2])
+    
     dx = x2 - x1
     dz = z2 - z1
-    L = np.sqrt(dx*dx + dz*dz)
+    L = np.sqrt(dx*dx + dz*dz) # drawing screen canvas length
     if L == 0:
         return
 
     tx, tz = dx/L, dz/L
     nx, nz = -tz, tx
+    
+    contrib = load.get_polynomial_contrib(elem)
+    x=load.get_break_points(elem)[0] # load position (local coordinate along element)
+    fx = contrib['f']['x']
+    fz = contrib['f']['z']
+    my = contrib['f']['my']
 
+    px = x1 + (x / l) * dx
+    pz = z1 + (x / l) * dz
+    f = np.sqrt((fx[1])**2 + (fz[1])**2)
+    if f > 0:
+        ax = px + (nx * (fz[1]) - tx * (fx[1])) / f * size
+        az = pz - (nz * (fz[1]) + tz * (fx[1])) / f * size
+
+        d.append(draw.Line(px, pz, ax, az, stroke='blue'))
+
+
+
+
+def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20):
+    n1 = domain.get_node(elem.nodes[0])
+    n2 = domain.get_node(elem.nodes[1])
+
+    x1, z1 = sx(n1.coords[0]), sy(n1.coords[2])
+    x2, z2 = sx(n2.coords[0]), sy(n2.coords[2])
+    l=np.sqrt((n2.coords[0] - n1.coords[0])**2 + (n2.coords[2] - n1.coords[2])**2) # real length
+    
+    dx = x2 - x1
+    dz = z2 - z1
+    L = np.sqrt(dx*dx + dz*dz) # drawing screen canvas length
+    if L == 0:
+        return
+
+    tx, tz = dx/L, dz/L
+    nx, nz = -tz, tx
+    
+    contrib = load.get_polynomial_contrib(elem)
+    fx = contrib['f']['x']
+    fz = contrib['f']['z']
+    my = contrib['f']['my']
+    # determine max/min for scaling
+    val0 = np.sqrt((fx[1]+fx[0]*0)**2 + (fz[1]+fz[0]*0)**2)
+    vall = np.sqrt((fx[1]+fx[0]*l)**2 + (fz[1]+fz[0]*l)**2)
+    max_val = max(val0, vall)
+    if max_val < 1e-12:
+        max_val = 1.0
+    
+    
     for i in range(n_arrows + 1):
+
         s = i / n_arrows
         px = x1 + s * dx
         pz = z1 + s * dz
 
-        ax = px + nx * w * scale
-        az = pz + nz * w * scale
+        x = s*l # local coord along element
+
+        ax = px + (nx * (fz[1]+x*fz[0]) - tx * (fx[1]+x*fx[0])) / max_val * size
+        az = pz - (nz * (fz[1]+x*fz[0]) + tz * (fx[1]+x*fx[0])) / max_val * size
 
         d.append(draw.Line(px, pz, ax, az, stroke='blue'))
+    
+    d.append(draw.Line(x1+(nx*(fz[1]+0*fz[0])-tx*(fx[1]+0*fx[0]))/ max_val * size, z1-(nz*(fz[1]+0*fz[0])+tz*(fx[1]+0*fx[0]))/ max_val * size, 
+                       x2+(nx*(fz[1]+l*fz[0])-tx*(fx[1]+l*fx[0]))/ max_val * size, z2-(nz*(fz[1]+l*fz[0])+tz*(fx[1]+l*fx[0]))/ max_val * size, stroke='blue'))
+
 
 def _draw_legend(d, SX, SY, diagrams, colors, width_px, height_px, margin=20):
     """
@@ -267,6 +329,7 @@ def plot_model_drawsvg(domain, filename="model.svg",
                        show_node_labels=True,
                        show_element_labels=True,
                        show_deformed=False,
+                       show_loads=True,
                        deform_scale=1.0,
                        nseg=40):
     """
@@ -308,9 +371,12 @@ def plot_model_drawsvg(domain, filename="model.svg",
                                center=True, fill='blue'))
 
         # Distributed loads
-        for load in domain.get_element_loads(elem.label):
-            if hasattr(load, "w"):
-                draw_distributed_load(d, x1, z1, x2, z2, load.w)
+        if (show_loads)
+            for load in domain.get_element_loads(elem.label):
+                if isinstance(load, PointLoadOnElement):
+                    draw_element_point_load(d, domain, elem, load, sx, sy)
+                else:
+                    draw_distributed_load(d, domain, elem, load, sx, sy)
 
     # ------------------------------------------------------------
     # Draw nodes, supports, nodal loads
