@@ -37,18 +37,22 @@ def _build_scalers(xs, ys, width_px, height_px, margin):
     xmin, xmax = min(xs), max(xs)
     ymin, ymax = min(ys), max(ys)
 
-    if xmax == xmin:
-        xmax += 1.0
-        xmin -= 1.0
-    if ymax == ymin:
-        ymax += 1.0
-        ymin -= 1.0
-
-    dx = xmax - xmin if xmax > xmin else 1.0
-    dy = ymax - ymin if ymax > ymin else 1.0
-
-    sx = lambda x: margin + (x - xmin) / dx * (width_px - 2*margin)
-    sy = lambda y: (margin + (y - ymin) / dy * (height_px - 2*margin))
+    dx = xmax - xmin 
+    dy = ymax - ymin
+    
+    if (dx > 0) and (dy > 0):
+        fraction = max(dx / (width_px - 2*margin), dy / (height_px - 2*margin))
+    elif dx > 0:
+        fraction = dx / (width_px - 2*margin)
+        ymin = ymin-0.5 * (height_px - 2*margin) * fraction
+    elif dy > 0:
+        fraction = dy / (height_px - 2*margin)
+        xmin = xmin-0.5 * (width_px - 2*margin) * fraction
+    else:
+        fraction = 1.0
+        
+    sx = lambda x: margin + (x - xmin) / fraction
+    sy = lambda y: margin + (y - ymin) / fraction
 
     return sx, sy
 
@@ -164,18 +168,26 @@ def draw_fixed_support(d, x, z, size=20):
 # Loads (Polygon-free)
 # ------------------------------------------------------------
 
-def draw_force(d, x, z, fx, fz, scale=0.002):
-    dx = fx * scale
-    dz = -fz * scale
-    d.append(draw.Line(x, z, x + dx, z + dz, stroke='blue', stroke_width=2))
+def draw_force(d, x, z, fx, fz, size=20, stroke='blue', stroke_width=2):
+    f = np.sqrt(fx*fx + fz*fz)
+    if f == 0:
+        return
+    dx = fx/f * size
+    dz = -fz/f * size
+    alpha = math.atan2(-fz, fx)
+
+    d.append(draw.Line(x, z, x + dx, z + dz, stroke=stroke, stroke_width=stroke_width))
 
     # Arrowhead (simple V shape)
     ah = 6
-    d.append(draw.Line(x + dx, z + dz,
-                       x + dx - ah*np.sign(dx+1e-9),
-                       z + dz - ah*np.sign(dz+1e-9),
-                       stroke='blue'))
-
+    d.append(draw.Line(x, z,
+                       x + 6*math.cos(alpha + math.pi/6),
+                       z + 6*math.sin(alpha + math.pi/6),
+                       stroke='blue', stroke_width=stroke_width))
+    d.append(draw.Line(x, z,
+                       x + 6*math.cos(alpha - math.pi/6),
+                       z + 6*math.sin(alpha - math.pi/6),
+                       stroke='blue', stroke_width=stroke_width))
 
 def draw_moment(d, x, z, My, radius=20):
     if My == 0:
@@ -212,9 +224,6 @@ def draw_element_point_load(d, domain, elem, load, sx, sy, size=20):
     dx = x2 - x1
     dz = z2 - z1
     L = np.sqrt(dx*dx + dz*dz) # drawing screen canvas length
-    if L == 0:
-        return
-
     tx, tz = dx/L, dz/L
     nx, nz = -tz, tx
     
@@ -231,12 +240,16 @@ def draw_element_point_load(d, domain, elem, load, sx, sy, size=20):
         ax = px + (nx * (fz[1]) - tx * (fx[1])) / f * size
         az = pz - (nz * (fz[1]) + tz * (fx[1])) / f * size
 
-        d.append(draw.Line(px, pz, ax, az, stroke='blue'))
+        draw_force(d, px, pz, -fx[1], fz[1], size, stroke='blue', stroke_width=2)
+        #d.append(draw.Line(px, pz, ax, az, stroke='blue'))
+        # generate label
+        d.append(draw.Text(f"F={{{fx[1]:.2f}, {fz[1]:.2f}}}", 10, ax, az, fill='black'))
 
 
 
 
-def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20):
+
+def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20, offset = 0):
     n1 = domain.get_node(elem.nodes[0])
     n2 = domain.get_node(elem.nodes[1])
 
@@ -252,6 +265,12 @@ def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20):
 
     tx, tz = dx/L, dz/L
     nx, nz = -tz, tx
+
+    # add offset to start position
+    x1 -= nx * offset
+    z1 -= nz * offset
+    x2 -= nx * offset
+    z2 -= nz * offset
     
     contrib = load.get_polynomial_contrib(elem)
     fx = contrib['f']['x']
@@ -263,7 +282,10 @@ def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20):
     max_val = max(val0, vall)
     if max_val < 1e-12:
         max_val = 1.0
-    
+      
+    d.append(draw.Line(x1, z1, x2, z2, stroke='blue')) #bottom (parallel to element)
+    d.append(draw.Line(x1-(fx[1]+0*fx[0])/ max_val * size, z1-(fz[1]+0*fz[0])/ max_val * size, 
+                       x2-(fx[1]+l*fx[0])/ max_val * size, z2-(fz[1]+l*fz[0])/ max_val * size, stroke='blue')) #top line (parallel to element)
     
     for i in range(n_arrows + 1):
 
@@ -276,10 +298,10 @@ def draw_distributed_load(d, domain, elem, load, sx, sy, n_arrows=8, size=20):
         ax = px + (nx * (fz[1]+x*fz[0]) - tx * (fx[1]+x*fx[0])) / max_val * size
         az = pz - (nz * (fz[1]+x*fz[0]) + tz * (fx[1]+x*fx[0])) / max_val * size
 
-        d.append(draw.Line(px, pz, ax, az, stroke='blue'))
-    
-    d.append(draw.Line(x1+(nx*(fz[1]+0*fz[0])-tx*(fx[1]+0*fx[0]))/ max_val * size, z1-(nz*(fz[1]+0*fz[0])+tz*(fx[1]+0*fx[0]))/ max_val * size, 
-                       x2+(nx*(fz[1]+l*fz[0])-tx*(fx[1]+l*fx[0]))/ max_val * size, z2-(nz*(fz[1]+l*fz[0])+tz*(fx[1]+l*fx[0]))/ max_val * size, stroke='blue'))
+        #d.append(draw.Line(px, pz, ax, az, stroke='blue'))
+        draw_force(d, px, pz, -(fx[1]), (fz[1]), size=size, stroke='blue', stroke_width=1)
+    # generate label
+    d.append(draw.Text(f"f={{{fx[1]:.2f}, {fz[1]:.2f}}}", 10, x1-(fx[1]+0*fx[0])/ max_val * (size+2), z1-(fz[1]+0*fz[0])/ max_val * (size+2), fill='black'))
 
 
 def _draw_legend(d, SX, SY, diagrams, colors, width_px, height_px, margin=20):
@@ -345,7 +367,7 @@ def plot_model_drawsvg(domain, filename="model.svg",
         xs.append(node.coords[0])
         zs.append(node.coords[2])
 
-    sx, sy = _sx_sy_builder(xs, zs, width_px, height_px, margin)
+    sx, sy = _build_scalers(xs, zs, width_px, height_px, margin)
     d = draw.Drawing(width_px, height_px, origin=(0, 0))
 
     # ------------------------------------------------------------
@@ -371,12 +393,14 @@ def plot_model_drawsvg(domain, filename="model.svg",
                                center=True, fill='blue'))
 
         # Distributed loads
-        if (show_loads)
+        offset = 3
+        if (show_loads):
             for load in domain.get_element_loads(elem.label):
                 if isinstance(load, PointLoadOnElement):
-                    draw_element_point_load(d, domain, elem, load, sx, sy)
+                    draw_element_point_load(d, domain, elem, load, sx, sy, size=40)
                 else:
-                    draw_distributed_load(d, domain, elem, load, sx, sy)
+                    draw_distributed_load(d, domain, elem, load, sx, sy, offset=offset)
+                    offset += 32
 
     # ------------------------------------------------------------
     # Draw nodes, supports, nodal loads
@@ -495,15 +519,17 @@ def plot_model_drawsvg(domain, filename="model.svg",
 
         # Max marker
         d.append(draw.Circle(sx(xmax), sy(zmax), 5, fill='red'))
+        baseline = 'hanging' if vmax_val > 0 else 'auto'
         d.append(draw.Text(f"{vmax_val:.4g}", 12,
-                           sx(xmax), sy(zmax) - 12,
-                           center=True, fill='red'))
+                           sx(xmax), sy(zmax),
+                           center=True, fill='red', dominant_baseline=baseline))
 
         # Min marker
         d.append(draw.Circle(sx(xmin), sy(zmin), 5, fill='blue'))
+        baseline = 'hanging' if vmin_val > 0 else 'auto'
         d.append(draw.Text(f"{vmin_val:.4g}", 12,
-                           sx(xmin), sy(zmin) + 14,
-                           center=True, fill='blue'))
+                           sx(xmin), sy(zmin),
+                           center=True, fill='blue', dominant_baseline=baseline))
 
     # ------------------------------------------------------------
     # Save SVG
