@@ -11,6 +11,7 @@ class Domain:
 
         self.nodal_loads = {}    # node_label → (fx, fz, My)
         self.element_loads = {}  # elem_label → [load objects]
+        self.prescribed_displacements = {}  # node_label → {dof: value}
 
         self.solver = None
 
@@ -48,6 +49,13 @@ class Domain:
 
     def apply_element_load(self, elem_label, load):
         self.element_loads.setdefault(elem_label, []).append(load)
+
+    def apply_prescribed_displacement(self, node_label, dofvalues):
+        """Append given prescribed displacements to a node list.
+        dofvalues: dict of dof → value"""
+        if node_label not in self.prescribed_displacements:
+            self.prescribed_displacements[node_label] = {}
+        self.prescribed_displacements[node_label].update(dofvalues)
 
     def get_element_loads(self, elem_label):
         return self.element_loads.get(elem_label, [])
@@ -174,9 +182,15 @@ class Solver:
         unknowns = np.arange(0, self.neq)
         prescribed = np.arange(self.neq, self.neq + self.pneq)
 
-        # prescribed displacements are zero (Dirichlet BC)
-        rp = np.zeros(self.pneq)
 
+        self.r = np.zeros(self.neq + self.pneq)
+        # prescribed displacements are zero (Dirichlet BC)
+        for node_label, dofvalues in self.domain.prescribed_displacements.items():
+            for dof, value in dofvalues.items():
+                code = self.code_numbers[node_label][dof]
+                self.r[code] = value
+        
+        rp = self.r[prescribed]
         # compute RHS: fu - K_up * rp
         Kuu = self.K[np.ix_(unknowns, unknowns)]
         Kup = self.K[np.ix_(unknowns, prescribed)]
