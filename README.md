@@ -17,32 +17,35 @@ This project takes the opposite approach:
 
 This is structural analysis for students & engineers who want to think, not click.
 
-## Installation
+## Documentation
+Check the [FLIP User Guide](doc/UserGuide.ipynb)
+
+## Getting started
+### Installation
 The project is pure Python and depends only on a small set of lightweight libraries.
 
-### Clone the repository
+#### Clone the repository
 ```
 bash
 git clone https://github.com/yourname/yourrepo.git
 cd yourrepo
 ```
-### Create a virtual environment (recommended)
+#### Create a virtual environment (recommended)
 ```
 bash
 python3 -m venv venv
 source venv/bin/activate   # Linux/macOS
 venv\Scripts\activate      # Windows
 ```
-### Install dependencies
+#### Install dependencies
 ```
 bash
 pip install -r requirements.txt
 ```
 
-## Getting Started
+### Simple example
 Here’s the smallest possible example to get you up and running.
 
-### Create a simple beam model
 ```python
 import sys
 sys.path.append("..")
@@ -76,6 +79,7 @@ plot_internal_forces_on_structure (domain, diagrams=["V", "M"], scale=0.1, heigh
 
 ![Demo beam results](figures/demo01.svg)
 
+
 ## Who Is This For?
 * Engineers who want more than a GUI
 * Educators teaching FEM fundamentals & students, see sample [demo](examples/teaching_fem.ipynb)
@@ -84,4 +88,4 @@ plot_internal_forces_on_structure (domain, diagrams=["V", "M"], scale=0.1, heigh
 
 Happy coding!
 
-Copyright (C) 2026 Bořek Patzák
+Copyright (C) 2026 [Bořek Patzák](https://mech.fsv.cvut.cz/~bp)
