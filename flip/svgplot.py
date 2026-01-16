@@ -168,7 +168,7 @@ def draw_fixed_support(d, x, z, size=20):
 # Loads (Polygon-free)
 # ------------------------------------------------------------
 
-def draw_force(d, x, z, fx, fz, size=20, stroke='blue', stroke_width=2):
+def draw_force(d, x, z, fx, fz, size=20, stroke='blue', stroke_width=2, drawLabel=False):
     f = np.sqrt(fx*fx + fz*fz)
     if f == 0:
         return
@@ -188,8 +188,10 @@ def draw_force(d, x, z, fx, fz, size=20, stroke='blue', stroke_width=2):
                        x + 6*math.cos(alpha - math.pi/6),
                        z + 6*math.sin(alpha - math.pi/6),
                        stroke='blue', stroke_width=stroke_width))
+    if (drawLabel):
+        d.append(draw.Text(f"F={{{fx:.2f}, {fz:.2f}}}", 10, x+dx, z, fill='black'))
 
-def draw_moment(d, x, z, My, radius=20):
+def draw_moment(d, x, z, My, radius=20, drawLabel=False):
     if My == 0:
         return
 
@@ -197,7 +199,7 @@ def draw_moment(d, x, z, My, radius=20):
     p = draw.Path(stroke='green', fill='none', stroke_width=2)
 
     # Sweep direction
-    sign = 1 if My > 0 else -1
+    sign = -1 if My > 0 else 1
 
     # Approximate 270° arc with 6 segments
     for i in range(7):
@@ -208,8 +210,21 @@ def draw_moment(d, x, z, My, radius=20):
             p.M(px, pz)
         else:
             p.L(px, pz)
-
+    # draw arrowhead
+    tipx = x + radius * np.cos(ang)
+    tipz = z + radius * np.sin(ang)
+    
+    ang = sign * 1.5 *(5.5/6)* np.pi + sign * np.pi / 2
+    p.M(tipx - (radius - 6) * np.cos(ang + np.pi / 6),
+        tipz - (radius - 6) * np.sin(ang + np.pi / 6))
+    p.L(tipx,
+        tipz)
+    p.L(tipx - (radius - 6) * np.cos(ang - np.pi / 6),
+        tipz - (radius - 6) * np.sin(ang - np.pi / 6))
     d.append(p)
+
+    if (drawLabel):
+        d.append(draw.Text(f"M={My:.2f}", 10, tipx, tipz, fill='black'))
 
 
 def draw_element_point_load(d, domain, elem, load, sx, sy, size=20):
@@ -427,7 +442,8 @@ def plot_model_drawsvg(domain, filename="model.svg",
             if fx != 0 or fz != 0:
                 draw_force(d, x, z, fx, fz)
             if My != 0:
-                draw_moment(d, x, z, My)
+                draw_moment(d, x, z, My, drawLabel=True)
+
 
     # ------------------------------------------------------------
     # Draw deformed shape (optional)
